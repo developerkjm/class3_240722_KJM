@@ -10,6 +10,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+// 강주미 충돌테스ㅡㅌ 내꺼 주석 달고 있음.
+// 저장
 
 /**
  * Handles requests for the application home page.

@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.itwillbs.gittest_kjm.mapper.BoardMapper">
+<!-- 게시물 등록 - INSERT -->
+	<!-- 
+	글번호(board_num) 컬럼이 일반 정수 컬럼이며 자동 증가 컬럼이 아니므로 직접 글번호 생성 필요
+	이 때, 기존 게시물 번호 중 가장 큰 번호 조회 후 + 1 값을 새 글 번호와 참조글 번호로 사용
+	=> 마이바티스의 INSERT, UPDATE 작업 과정(DELETE 제외)에서 
+	   SELECT 구문 조회 결과값을 활용해야할 경우 <selectKey> 태그를 <insert> 등의 태그 내에서 사용하여
+	   작업 전 또는 후에 특정 데이터 조회 수행 및 해당 값을 활용 가능
+	   - keyProperty 속성 : 조회(SELECT) 결과 값을 저장할 속성명(VO 객체의 멤버변수명도 지정 가능)
+	                        => 조회 후 자동으로 해당 객체의 변수(또는 일반 변수)에 결과값 저장됨
+	                           ex) BoardVO 객체를 파라미터로 전달받았을 때 board_num 변수 지정 시
+	                               해당 객체 내의 멤버변수 board_num 에 조회 결과값 저장됨
+	   - resultType 속성 : 조회(SELECT) 결과에 대한 데이터타입(마이바티스에서 처리하는 타입)
+	   - order 속성 : 작업 수행 시점(메인 작업 전 수행 시 BEFORE, 작업 후 수행 시 AFTER 선택)
+	-->
+	<insert id="insertBoard">
+	<!-- board_num은 auto_increment를 안해서 null을 못함. 그럼 제일 큰값을 찾으면 됨. 없으면 내가 1번. -->
+		<!-- vo에 있는 값에 저장하면 vo에 저장해준다????????????? 만약에 vo 없으면 그냥 #{X} 해도된다??? -->
+		<!-- 기존 게시물들 중 가장 큰 글번호(board_num)_조회 - SELECT -->
+		<!-- keyProperty이름은 반드시 Mapper.클래스에서 파라미터로 오는 객체의 이름을 써야한다.  -->
+		<!-- 단, 조회 결과가 없을 경우 null 값 대신 0 이 기본값으로 설정되도록 처리 => IFNULL() 활용 -->
+		<selectKey keyProperty="board_num" resultType="int" order="BEFORE"><!-- insert하기 전에 해야하니까  Before써야함. -->
+			SELECT IFNULL(MAX(board_num),0)
+			FROM board	
+		</selectKey>
+		
+		<!-- selectKey를 통해 조회된 글번호 +1 값을 새글번호와 참조글 번호 값으로 사용 -->
+		<!--  이때, keyProperty에 지정한 이름을 변수처러 ㅁ활용 => #{board_num} -->
+		INSERT
+		INTO board
+		VALUES (
+			#{board_num} +1	 	-- 글번호
+			, #{board_name}
+			, #{board_subject}
+			, #{board_content}
+			, #{board_file}		-- 다중파일업로드를 구현하지 않았지만 insert 문에 포함
+			, #{board_file1}
+			, #{board_file2}
+			, #{board_file3}
+			, #{board_num} +1	-- 참조글번호(board_re_ref) = > 새 글번호와 동일한 값 사용
+			, 0					-- 들여쓰기레벨(board_re_lev) => 기본값 0
+			, 0					-- 글순서번호(board_re_seq) => 기본값 0
+			, 0  				-- 조회수(board_readcount) => 기본값 0
+			, now()				-- 작성일시
+			, #{board_writer_ip}
+		)
+	</insert>
+<!-- 	board 테이블의 전체 레코드 조회 (startRow, listLimet 파라미터 값을 LIMIT 절에 적용해서 갯수 제한) -->
+	<!-- LIMIT 앞쪽에 숫자가 동적으로 바뀜 -->
+<!-- 	<select id="selectBoardList" resultType="board"> -->
+<!-- 		SELECT *  -->
+<!-- 		FROM board  -->
+<!-- 		ORDER BY  -->
+<!-- 			board_re_ref DESC -->
+<!-- 			, board_re_seq ASC	 -->
+<!-- 		LIMIT  -->
+<!-- 			#{startRow} -->
+<!-- 			, #{listLimit} -->
+<!-- 	</select> -->
+
+<!-- 글목록 조회시 검색 기능 추가  -->
+	<select id="selectBoardList" resultType="board">
+		SELECT * 
+		FROM board
+		
+		<!-- 
+		1. 검색(searchKeyword)가 널스트링이 아닐 때 검색어를 추가하기 위한 where 절 추가
+		   => 검색어 테이터는 searchKeyword 변수에 저장되어 있음(@Param("searchKeyword))
+		   => 자바 문법과 동일하게 equals() 메서드를 통해 비교 수행함.
+		 -->
+		 <if test="!searchKeyword.equals('')">
+			WHERE 
+			<!-- 
+			2. 검색타입(searchType)에 따른 where 조건의 대상 컬럼명 변경하여 조건 작성
+			   => searchType 변수의 문자열 비교 (subject, content, subject_content, name)
+			   => 경우의 수가 2개 이므로 <choose><when><otherwise> 사용
+			 -->
+			<choose>
+				<!-- 1) 제목으로 검색했을 경우 -->
+				<when test="searchType.equals('subject')">
+<!-- 				만약 '%#{searchKeyword}%' 형식으로 지정시 오류발생('%'검색어'%') -->
+<!-- 					board_subject LIKE '%#{searchKeyword}%' -->
+
+<!-- 					'%${searchKeyword}%' 형식으로 지정시 정상 동작함('%검색어%') -->
+					board_subject LIKE '%${searchKeyword}%'
+<!-- 					CONCAT() 함수 활용하여 "%" 문자와 검색어 결합도 가능 -->
+<!-- 					단, 이경우에는 searchKeyword 데이터의 타입 감지가 필요하므로 # 사용 -->
+<!-- 					board_subject LIKE CONCAT('%', #{searchKeyword}, '%') -->
+				</when>
+<!-- 				2) 내용으로 검색했을 경우 -->
+				<when test="searchType.equals('content')">
+<!-- 					board_content LIKE '%${searchKeyword}%' -->
+					board_content LIKE CONCAT('%', #{searchKeyword}, '%')
+				</when>
+<!-- 				3) 제목&내용으로 검색했을 경우 -->
+				<when test="searchType.equals('subject_content')">
+					board_subject LIKE CONCAT('%', #{searchKeyword}, '%')
+					or board_content LIKE CONCAT('%', #{searchKeyword}, '%')
+				</when>
+<!-- 				4) 작성자로 검색했을 경우 -->
+				<when test="searchType.equals('name')">
+					board_name LIKE CONCAT('%', #{searchKeyword}, '%')
+				</when>
+<!-- 				5) 만약 searchType 값이 존재하지 않는 잘못된 값일 경우 - 무조건 트루가 되게 하면 where절이 동작하지 않는다. -->
+<!-- 					where 절은 무조건 추가되므로 조건을 무효화 시키기 위해 항상 true 가 되는 아무조건식이나 작성하면 된다. -->
+				<otherwise>
+					1 = 1 	-- 항상 true가 되는 조건식 
+				</otherwise>
+			</choose>		 
+		 </if>
+		ORDER BY 
+			board_re_ref DESC
+			, board_re_seq ASC	
+		LIMIT 
+			#{startRow}
+			, #{listLimit}
+	</select>
+	
+<!-- 	전체 게시물 수 조회  -->
+<!-- 	<select id="selectBoardListCount"> -->
+<!-- 		SELECT COUNT(*) -->
+<!-- 		FROM board -->
+<!-- 	</select> -->
+<!-- 검색기능 추가를 위해 검색어에 따른 결과 게시물 수 조회 -->
+	<select id="selectBoardListCount">
+		SELECT COUNT(*)
+		FROM board
+		<!-- 
+		1. 검색(searchKeyword)가 널스트링이 아닐 때 검색어를 추가하기 위한 where 절 추가
+		   => 검색어 테이터는 searchKeyword 변수에 저장되어 있음(@Param("searchKeyword))
+		   => 자바 문법과 동일하게 equals() 메서드를 통해 비교 수행함.
+		 -->
+		 <if test="!searchKeyword.equals('')">
+			WHERE 
+			<choose>
+				<when test="searchType.equals('subject')">
+					board_subject LIKE '%${searchKeyword}%'
+				</when>
+				<when test="searchType.equals('content')">
+					board_content LIKE CONCAT('%', #{searchKeyword}, '%')
+				</when>
+				<when test="searchType.equals('subject_content')">
+					board_subject LIKE CONCAT('%', #{searchKeyword}, '%')
+					or board_content LIKE CONCAT('%', #{searchKeyword}, '%')
+				</when>
+				<when test="searchType.equals('name')">
+					board_name LIKE CONCAT('%', #{searchKeyword}, '%')
+				</when>
+				<otherwise>
+					1 = 1 	-- 항상 true가 되는 조건식 
+				</otherwise>
+			</choose>		 
+		 </if>
+	</select>
+	
+	<select id="selectBoard" resultType="board">
+		SELECT *
+		FROM board
+		WHERE board_num = #{board_num}
+	</select>
+	
+	<!-- 게시물 조회수 증가 -update -->
+	<!-- 
+		글번호에 해당하는 레코드의 조회수(board_readcount) 컬럼값 1 증가
+		이때, 증가된 조회수를 외부로 전달하기위해 <selectKey> 태그 활용하여
+		조회수 증가 작업 이후에 조회수값을 조회하여 BoardVO 객체의 board_readcount 멤버변수에 저장 필요 
+		=> 매퍼 메서드 파라미터로 BoardVO 객체를 전달받았을 경우 keyProperty 속성갑으로
+		   BoardVO 객체의 멤버변수명(board_readcount) 지정시 조회 결과가 해당 멤버변수에 자동으로 저장
+		=> BoardVO 객체를 BoardController 클래스로 부터 모두 공유중이므로 별도의 리턴없이도 객첼값 공유
+		  - 참조데이터는 주소값 자체를 공유하면 바뀐값을 가리킨다! 
+	-->
+	<update id="updateReadcount">
+<!-- 	 수정하고나서 조회하니까 AFTER -->
+		<selectKey keyProperty="board_readcount" resultType="int" order="AFTER">
+			select board_readcount 
+			from board 
+			where board_num = #{board_num}
+		</selectKey>
+		UPDATE board
+		SET board_readcount = board_readcount + 1
+		WHERE board_num = #{board_num}
+	</update>
+	<delete id="deleteBoard">
+		DELETE
+		FROM board
+		WHERE board_num = #{board_num}
+	</delete>
+	<update id="updateBoard">
+	<!-- 글번호가 일치하는 레코드 수정 
+		- 제목과 내용은 무조건 수정
+		- 단, 파일명 3개(board_filex)) 중 비어있지 않은 파일명만 컬럼값을 수정 - 비어있는 것들은 기존에 올라간 것들인데 널스트링으로 수정저장하면 파일이 삭제되어 버린다.
+		  => 즉, 파일명 3개를 각각!! 비어있는지 판별 후 SET 절에 구문 추가 (elseif관계 아님! 각각임!!) 
+	-->
+		UPDATE board
+		SET 
+			board_subject = #{board_subject}
+			, board_content = #{board_content}
+			<if test="!board_file1.equals('')">
+				, board_file1 = #{board_file1}		
+			</if>
+			<if test="!board_file2.equals('')">
+				, board_file2 = #{board_file2}		
+			</if>
+			<if test="!board_file3.equals('')">
+				, board_file3 = #{board_file3}		
+			</if>
+						
+		WHERE board_num = #{board_num}
+	</update>
+</mapper>

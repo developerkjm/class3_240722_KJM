@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
  */
 @Controller
 public class HomeController {
+	// 충돌테스트!!!!!!!!!!!!!!!!!!!
 	
 	private static final Logger logger = LoggerFactory.getLogger(HomeController.class);
 	

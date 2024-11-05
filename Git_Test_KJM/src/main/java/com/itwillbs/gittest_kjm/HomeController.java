@@ -16,7 +16,8 @@ import org.springframework.web.bind.annotation.RequestMethod;
  */
 @Controller
 public class HomeController {
-	// 첫줄에 주석넣어서 충돌테스트 하고 있음
+	// 충돌테스트!!!!!!!!!!!!!!!!!!!
+
 	private static final Logger logger = LoggerFactory.getLogger(HomeController.class);
 	
 	/**
@@ -37,6 +38,7 @@ public class HomeController {
 		
 		model.addAttribute("serverTime", formattedDate );
 		// index 주석 저장
+		// 충돌테스트
 		return "index";
 	}
 	
